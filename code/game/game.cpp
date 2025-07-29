@@ -494,9 +494,6 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
         state->sound.samplingRadians = TWO_PI / 48000.0f;
         state->sound.setFrequency(440); // Middle C I think?
 
-        state->player.textureId = LoadPNG("character.png");
-        state->monster.textureId = LoadPNG("monster.png");
-
         state->mainFontId = LoadTTF("fonts/Inconsolata-Regular.ttf", 32.0f);
         state->currentDemo = DEMO_SELECT;
 
@@ -523,11 +520,6 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
     state->frame.bottom = 0;
     state->frame.width = state->camera.size.x;
     state->frame.height = state->camera.size.y;
-
-    state->screenColor.r = input->controller.leftStick.x;
-    state->screenColor.g = input->controller.leftStick.y;
-
-    state->screenColor.b = input->controller.rightStick.x;
 
     platform->clearScreen(state->screenColor);
 

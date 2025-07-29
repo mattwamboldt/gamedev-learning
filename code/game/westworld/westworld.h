@@ -15,12 +15,12 @@ struct WestworldState
     bool isInitialized;
     Miner* miner;
 
-    // Locations in the town
     int32 groundTextureId;
 
+    // Locations in the town
     Building buildings[NUM_LOCATIONS];
 
-    char messageBox[1024];
+    char messageBox[128];
     bool messageBoxActive;
 };
 

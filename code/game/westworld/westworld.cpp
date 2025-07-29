@@ -216,7 +216,7 @@ void VisitBankAndDepositGold::Enter(Miner* pMiner)
     // on entry the miner makes sure he is located at the bank
     if (pMiner->Location() != BANK)
     {
-        ShowMessageBox(pMiner->Id(), "Goin' to the bank. Yes siree", GetNameOfEntity(pMiner->Id()));
+        ShowMessageBox(pMiner->Id(), "Goin' to the bank. Yes siree");
 
         pMiner->ChangeLocation(BANK);
     }
@@ -293,7 +293,7 @@ void QuenchThirst::Enter(Miner* pMiner)
     if (pMiner->Location() != SALOON)
     {    
         pMiner->ChangeLocation(SALOON);
-        ShowMessageBox(pMiner->Id(), "Boy, ah sure is thusty! Walking to the saloon.", GetNameOfEntity(pMiner->Id()));
+        ShowMessageBox(pMiner->Id(), "Boy, ah sure is thusty! Walking to the saloon.");
     }
 }
 

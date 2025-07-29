@@ -22,15 +22,6 @@ struct Oscillator
     void stop();
 };
 
-struct Enemy
-{
-    int currentHealth;
-    int maxHealth;
-
-    uint32 textureId;
-    Vector2 position;
-};
-
 enum FileType
 {
     FILETYPE_HTX,
@@ -113,20 +104,6 @@ struct UIFrame
     real32 height;
 };
 
-struct Player
-{
-    Vector2 position;
-    uint32 textureId;
-
-    int32 currentHealth;
-    int32 maxHealth;
-
-    // stats
-    int32 strength;
-    int32 dexterity;
-    int32 constitution;
-};
-
 enum Demo
 {
     DEMO_WESTWORLD = 0,
@@ -146,9 +123,6 @@ struct GameState
 
     UIFrame frame;
     Camera camera;
-
-    Player player;
-    Enemy monster;
 
     Demo currentDemo;
     int selectedDemo;
