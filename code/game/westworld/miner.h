@@ -1,6 +1,6 @@
 #pragma once
 #include "baseGameEntity.h"
-#include "state.h"
+#include "stateMachine.h"
 
 enum TownLocation
 {
@@ -30,7 +30,7 @@ class Miner : public BaseGameEntity
 public:
     Miner(int32 id);
     void Update(real32 elapsed);
-    void ChangeState(State* newState);
+    StateMachine<Miner>* GetFSM() {return stateMachine; }
 
     // NOTE: I wouldn't normally bother with getters and setters when they do nothing like this
     // NOTE: I also wouldn't bother with const correctness as it serves no practical benefit I find
@@ -69,8 +69,7 @@ public:
     uint32 textureId;
 
 private:
-    State* currentState;
-    State* desiredState;
+    StateMachine<Miner>* stateMachine;
 
     // Miners current location
     TownLocation location;

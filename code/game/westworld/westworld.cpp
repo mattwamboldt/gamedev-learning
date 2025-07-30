@@ -1,5 +1,8 @@
-#include "miner.h"
+#include "minerStates.h"
 #include "westworld.h"
+
+#include <cstdio>
+#include <cstdarg>
 
 int BaseGameEntity::nextValidId = 0;
 static WestworldState* gWestworld = 0;
@@ -39,6 +42,7 @@ void ShowMessageBox(int32 entityId, char* format, ...)
     va_end(args);
 
     gWestworld->messageBoxActive = true;
+    gWestworld->miner->GetFSM()->SetPaused(true);
 }
 
 void BaseGameEntity::SetID(int32 value)
@@ -55,10 +59,11 @@ Miner::Miner(int32 id) : BaseGameEntity(id),
     numGoldCarried(0),
     numGoldInBank(0),
     thirst(0),
-    fatigue(0),
-    currentState(GoHomeAndSleepTilRested::Instance()),
-    desiredState(GoHomeAndSleepTilRested::Instance())
-{}
+    fatigue(0)
+{
+    stateMachine = new StateMachine<Miner>(this);
+    stateMachine->SetCurrentState(GoHomeAndSleepTilRested::Instance());
+}
 
 void Miner::Update(real32 elapsed)
 {
@@ -86,49 +91,12 @@ void Miner::Update(real32 elapsed)
     }
     else
     {
-        if (currentState != desiredState)
-        {
-            if (currentState)
-            {
-                currentState->Exit(this);
-                currentState = 0;
-            }
-
-            if (!currentState && !gWestworld->messageBoxActive)
-            {
-                currentState = desiredState;
-                currentState->Enter(this);
-            }
-        }
-        else
+        if (!stateMachine->isInTransition())
         {
             ++thirst;
-        
-            if (currentState)
-            {
-                currentState->Execute(this);
-            }
         }
 
-    }
-}
-
-void Miner::ChangeState(State* newState)
-{
-    Assert(currentState && newState)
-
-    desiredState = newState;
-
-    if (!gWestworld->messageBoxActive)
-    {
-        currentState->Exit(this);
-        currentState = 0;
-    }
-
-    if (!gWestworld->messageBoxActive)
-    {
-        currentState = newState;
-        currentState->Enter(this);
+        stateMachine->Update();
     }
 }
 
@@ -191,12 +159,12 @@ void EnterMineAndDigForNugget::Execute(Miner* pMiner)
     //if enough gold mined, go and put it in the bank
     if (pMiner->PocketsFull())
     {
-        pMiner->ChangeState(VisitBankAndDepositGold::Instance());
+        pMiner->GetFSM()->ChangeState(VisitBankAndDepositGold::Instance());
     }
 
     if (pMiner->Thirsty())
     {
-        pMiner->ChangeState(QuenchThirst::Instance());
+        pMiner->GetFSM()->ChangeState(QuenchThirst::Instance());
     }
 }
 
@@ -232,13 +200,13 @@ void VisitBankAndDepositGold::Execute(Miner* pMiner)
     if (pMiner->Wealth() >= ComfortLevel)
     {
         ShowMessageBox(pMiner->Id(), "WooHoo! Rich enough for now. Back home to mah li'lle lady.");
-        pMiner->ChangeState(GoHomeAndSleepTilRested::Instance());      
+        pMiner->GetFSM()->ChangeState(GoHomeAndSleepTilRested::Instance());      
     }
     //otherwise get more gold
     else 
     {
         ShowMessageBox(pMiner->Id(), "Depositing gold. Total savings now: %d.", pMiner->Wealth());
-        pMiner->ChangeState(EnterMineAndDigForNugget::Instance());
+        pMiner->GetFSM()->ChangeState(EnterMineAndDigForNugget::Instance());
     }
 }
 
@@ -268,7 +236,7 @@ void GoHomeAndSleepTilRested::Execute(Miner* pMiner)
     if (!pMiner->Fatigued())
     {
         ShowMessageBox(pMiner->Id(), "What a God darn fantastic nap! Time to find more gold.");
-        pMiner->ChangeState(EnterMineAndDigForNugget::Instance());
+        pMiner->GetFSM()->ChangeState(EnterMineAndDigForNugget::Instance());
     }
     else 
     {
@@ -306,7 +274,7 @@ void QuenchThirst::Execute(Miner* pMiner)
     }
     else
     {
-        pMiner->ChangeState(EnterMineAndDigForNugget::Instance());
+        pMiner->GetFSM()->ChangeState(EnterMineAndDigForNugget::Instance());
     }
 }
 
@@ -361,6 +329,7 @@ void WestworldUpdateAndRender(GameState *state, GameInput* input)
     if (input->controller.cross.wasPressed())
     {
         gWestworld->messageBoxActive = false;
+        gWestworld->miner->GetFSM()->SetPaused(false);
     }
 
     gWestworld->miner->Update(input->timeDelta);
