@@ -62,6 +62,38 @@ struct BitmapFont
 	Texture texture;
 };
 
+// our standard sound is 16 bits per sample
+// and may or may not have multiple channels
+// TODO: lock that down
+struct SoundSource
+{
+    uint32 numSamples;
+    uint32 numChannels;
+    uint32 samplesPerSecond;
+    int16* data;
+};
+
+enum SoundCategory {
+	AUDIO_MUSIC,
+	AUDIO_SFX,
+
+	NUM_SOUND_CATEGORIES
+};
+
+struct Sound
+{
+    int sourceId;
+	SoundCategory category;
+    bool active;
+    bool looping;
+    real32 playHead;
+	real32 volume;
+	real32 startVolume;
+	real32 desiredVolume;
+	real32 volumeChangeElapsed;
+	real32 volumeChangeDuration;
+};
+
 // TODO: Some of these assets arrays should potentially be dynamic, at least in size
 // since different levels have different requirements for them, perhaps we have multiple
 // levels of asset cache for permanent game wide assets vs level specific/mode specific
@@ -72,8 +104,8 @@ struct Assets
     uint32 numFonts;
     BitmapFont fonts[10];
 
-    //uint32 numSoundSources;
-    //SoundSource soundSources[30];
+    uint32 numSoundSources;
+    SoundSource soundSources[30];
 
     uint32 numTextures;
     Texture textures[200];
@@ -107,6 +139,7 @@ struct UIFrame
 enum Demo
 {
     DEMO_WESTWORLD = 0,
+    DEMO_PLACEHOLDER,
     NUM_DEMOS,
 
     DEMO_SELECT = -1,
@@ -116,9 +149,6 @@ enum Demo
 
 struct GameState
 {
-    Oscillator sound;
-    Color screenColor;
-
     Assets assets;
 
     UIFrame frame;
@@ -128,6 +158,13 @@ struct GameState
     int selectedDemo;
 
     int32 mainFontId;
+    int32 menuMoveSoundId;
+    int32 menuSelectSoundId;
+
+    Sound playingSounds[20];
+
+    real32 masterVolume;
+	real32 categoryVolumes[NUM_SOUND_CATEGORIES];
 
     // If I add more demos this is probably best done as a stack push that can
     // can be popped when we leave this demos lifetime

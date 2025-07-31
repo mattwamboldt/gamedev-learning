@@ -149,6 +149,11 @@ Texture* GetTexture(Assets* assets, int32 handle)
     return (Texture*)entry.address;
 }
 
+SoundSource* GetSoundSource(Assets* assets, int32 handle)
+{
+	return assets->soundSources + handle;
+}
+
 Vector2 GetTextureSize(int32 textureId)
 {
     Texture* texture = GetTexture(&gState->assets, textureId);
@@ -164,6 +169,103 @@ uint32 LoadPNG(char* path)
     ProcessPNG(tempFileBuffer, texture);
     gPlatform->freeBuffer(tempFileBuffer);
     return AddAssetEntry(&gState->assets, FILETYPE_PNG, path, texture);
+}
+
+enum WaveFormats
+{
+	WAVE_PCM = 1,
+	WAVE_FLOAT = 3,
+	WAVE_ALAW = 6,
+	WAVE_MULAW = 7,
+	WAVE_EXTENSIBLE = 0xFFFE
+};
+
+#pragma pack(push, 1)
+// Similar to waveformatex, but we want to be platform agnostic for when
+// when this moves out of this file
+struct WaveHeader
+{
+	uint32 riffChunkId;
+	uint32 chunkSize;
+	uint32 waveChunkId;
+	uint32 formatChunkId;
+	uint32 formatChunkSize; // 16, 18 or 40 depending on version
+	uint16 format;
+	uint16 numChannels;
+	uint32 samplesPerSecond;
+	uint32 bytesPerSec;
+	uint16 blockAlign;
+	uint16 bitsPerSample;
+	uint16 extensionSize; // 0, or 22, 0 for PCM which is all we care about at the moment
+};
+#pragma pack(pop)
+
+int32 LoadWAV(char* path)
+{
+    Buffer tempFileBuffer = gPlatform->readWholeFile(path);
+    Assert(tempFileBuffer.memory);
+    
+    WaveHeader* header = (WaveHeader*)tempFileBuffer.memory;
+
+    Assert(header->riffChunkId == FOURCC('R', 'I', 'F', 'F'));
+    Assert(header->waveChunkId == FOURCC('W', 'A', 'V', 'E'));
+    Assert(header->formatChunkId == FOURCC('f', 'm', 't', ' '));
+    Assert(header->format == WAVE_PCM); // only support pcm for now
+
+    uint8* currentByte = (uint8*)tempFileBuffer.memory;
+    currentByte += 20 + header->formatChunkSize;
+    Assert(*(uint32*)currentByte == FOURCC('d', 'a', 't', 'a'));
+
+    currentByte += 4;
+    uint32 numBytes = *(uint32*)currentByte;
+    uint8 bytesPerSample = (uint8)(header->bitsPerSample / 8);
+    
+    // We're now at the data
+    currentByte += 4;
+    
+    int32 nextId = gState->assets.numSoundSources++;
+    SoundSource* source = gState->assets.soundSources + nextId;
+    source->numChannels = header->numChannels;
+    source->samplesPerSecond = header->samplesPerSecond;
+    source->numSamples = numBytes / bytesPerSample;
+
+    // TODO: Allocate this from Game Memory instead
+    source->data = (int16 *)malloc(source->numSamples * sizeof(int16));
+
+    // We scale 8 bit samples to 16
+    if (bytesPerSample == 1)
+    {
+        for (uint32 i = 0; i < source->numSamples; ++i)
+        {
+            uint16 currentSample = (uint16)(*currentByte);
+            source->data[i] = (currentSample - 128) << 8;
+            ++currentByte;
+        }
+    }
+    else if (bytesPerSample == 2)
+    {
+        uint16* currentSample = (uint16*)currentByte;
+        for (uint32 i = 0; i < source->numSamples; ++i)
+        {
+            source->data[i] = *currentSample++;
+        }
+    }
+    // scale down 24 bit samples to work in 16
+    // TODO: May be better to save float samples
+    else if (bytesPerSample == 3)
+    {
+        int32 fullSample;
+        for (uint32 i = 0; i < source->numSamples; ++i)
+        {
+            fullSample = 0;
+            fullSample |= *currentByte++ << 8;
+            fullSample |= *currentByte++ << 16;
+            fullSample |= *currentByte++ << 24;
+            source->data[i] = (int16)((fullSample / 2147483648.0f) * 32767.0f);
+        }
+    }
+
+    return nextId;
 }
 
 // TODO: Get kerning information. May not be efficient to do with stb, may need to be purely asset processor driven
@@ -485,17 +587,39 @@ void RenderText(int32 fontId, const char* text, real32 x, real32 y, Vector2 pivo
     }
 }
 
+void PlaySound(int32 soundId, bool looping = false)
+{
+    for (int i = 0; i < 20; ++i)
+    {
+        Sound* sound = gState->playingSounds + i;
+        if (!sound->active)
+        {
+            *sound = {};
+            sound->volume = 1.0f;
+            sound->sourceId = soundId;
+            sound->active = true;
+            sound->playHead = 0;
+            sound->looping = looping;
+            sound->category = AUDIO_SFX;
+            break;
+        }
+    }
+}
+
 extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
 {
     gPlatform = platform;
     GameState* state = gState = (GameState*)memory->permanentStorage;
     if (!memory->isInitialized)
     {
-        state->sound.samplingRadians = TWO_PI / 48000.0f;
-        state->sound.setFrequency(440); // Middle C I think?
-
         state->mainFontId = LoadTTF("fonts/Inconsolata-Regular.ttf", 32.0f);
+        state->menuMoveSoundId = LoadWAV("audio/sfx/menu.wav");
+        state->menuSelectSoundId = LoadWAV("audio/sfx/select.wav");
         state->currentDemo = DEMO_SELECT;
+
+        state->masterVolume = 0.9f;
+        state->categoryVolumes[AUDIO_SFX] = 1.0f;
+        state->categoryVolumes[AUDIO_MUSIC] = 1.0f;
 
         memory->isInitialized = true;
     }
@@ -521,20 +645,33 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
     state->frame.width = state->camera.size.x;
     state->frame.height = state->camera.size.y;
 
-    platform->clearScreen(state->screenColor);
+    platform->clearScreen(black);
 
     if (state->currentDemo == DEMO_SELECT)
     {
+        if (input->controller.up.wasPressed())
+        {
+            PlaySound(state->menuMoveSoundId);
+            state->selectedDemo = (state->selectedDemo + NUM_DEMOS - 1) % NUM_DEMOS;
+        }
+        else if (input->controller.down.wasPressed())
+        {
+            PlaySound(state->menuMoveSoundId);
+            state->selectedDemo = (state->selectedDemo + 1) % NUM_DEMOS;
+        }
+
         if (input->controller.cross.wasPressed())
         {
-            state->currentDemo = (Demo)state->selectedDemo;
+            PlaySound(state->menuSelectSoundId);
+            state->currentDemo = DEMO_WESTWORLD; // (Demo)state->selectedDemo; haard coding cause we only have 1
         }
 
         RenderText(state->mainFontId, "Demos", state->frame.center, state->frame.top - 10, { 0.5f, 1 }, white);
 
         Vector2 listStart = {state->frame.left + 20, state->frame.top - 50};
         char* menuItems[] = {
-            "West World"
+            "West World",
+            "Placeholder"
         };
 
         Vector2 largestText = {};
@@ -557,7 +694,7 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
 
             RenderText(state->mainFontId, menuItems[i], listStart.x + 10, listStart.y - 10, { 0, 1 }, white);
 
-            listStart.y += largestText.y + 10;
+            listStart.y -= largestText.y + 10;
         }
     }
     else if (state->currentDemo == DEMO_WESTWORLD)
@@ -568,43 +705,101 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
 
 #include <cstring>
 
+// volume conversion functions
+real32 dBToVolume(real32 dB)
+{
+	return powf(10.0f, 0.05f * dB);
+}
+
+real32 VolumeTodB(real32 volume)
+{
+	return 20.0f * log10f(volume);
+}
+
+void WriteSound(Sound* sound, SoundSource* source, GameAudio* output, real32 masterVolume = 1.0f)
+{
+    uint32 i = 0;
+    uint32 sampleCount = source->numSamples / source->numChannels;
+
+    // This is how many samples to increment before playing the next sample
+    real32 playheadIncrement = ((real32)source->samplesPerSecond / (real32)output->samplesPerSecond); // * pitch;
+
+    while (sound->playHead < sampleCount && i < output->sampleCount)
+    {
+        //The playhead will be in relation to a mono track and scaled
+        uint32 playHeadsample = ((uint32)sound->playHead) * source->numChannels;
+        real32 t = 0.0;
+        uint32 nextSample = playHeadsample;
+
+        //We do a lerp to scale the audio
+        if (playHeadsample < (source->numSamples / source->numChannels) - 1)
+        {
+            t = sound->playHead - (playHeadsample / (real32)source->numChannels);
+            nextSample = playHeadsample + source->numChannels;
+        }
+
+        float leftChannel = lerp((real32)source->data[playHeadsample], (real32)source->data[nextSample], t);
+        float rightChannel = leftChannel; //For mono we simply output the same sample to both channels
+
+        if (source->numChannels == 2)
+        {
+            rightChannel = lerp(source->data[playHeadsample + 1], source->data[nextSample + 1], t);
+        }
+
+        if (sound->volumeChangeDuration > 0)
+        {
+            sound->volume = lerp(sound->startVolume, sound->desiredVolume, sound->volumeChangeElapsed / sound->volumeChangeDuration);
+            sound->volumeChangeElapsed += playheadIncrement * (1.0f / (real32)source->samplesPerSecond);
+
+            if (sound->volumeChangeElapsed > sound->volumeChangeDuration)
+            {
+                sound->volumeChangeDuration = -1;
+                sound->volume = sound->desiredVolume;
+                sound->active = sound->desiredVolume > 0;
+            }
+        }
+
+        output->samples[i] += (int16)(leftChannel * sound->volume * masterVolume/* * leftGain*/);
+        output->samples[i + 1] += (int16)(rightChannel * sound->volume * masterVolume/* * rightGain*/);
+
+        i += 2;
+        sound->playHead += playheadIncrement;
+
+        if (sound->playHead >= sampleCount)
+        {
+            if (sound->looping)
+            {
+                sound->playHead -= sampleCount;
+            }
+            else
+            {
+                sound->active = false;
+                sound->playHead = 0.0;
+                break;
+            }
+        }
+    }
+}
+
 extern "C" __declspec(dllexport) GAME_OUTPUT_SOUND(gameOutputSound)
 {
     GameState* state = (GameState*)memory->permanentStorage;
-    // memset cause this is dummy code
-    memset(output->samples, 0, output->sampleCount * output->bytesPerSample);
 
-    if (!memory->isInitialized || (!state->sound.isPlaying && !state->sound.wasPlaying))
+    memset(output->samples, 0, output->sampleCount * sizeof(int16));
+    real32 masterDb = state->masterVolume * 90.0f - 90.0f;
+    real32 masterVolume = dBToVolume(masterDb);
+
+    for (int i = 0; i < 20; ++i)
     {
-        return;
+        Sound* sound = state->playingSounds + i;
+        if (sound->active)
+        {
+            real32 categoryDb = state->categoryVolumes[sound->category] * 90.0f - 90.0f;
+            real32 categoryVolume = dBToVolume(categoryDb);
+            SoundSource* source = GetSoundSource(&state->assets, sound->sourceId);
+            WriteSound(sound, source, output, masterVolume * categoryVolume);
+        }
     }
-
-    real32 gain = 0;
-    real32 desiredGain = 0;
-
-    if (state->sound.isPlaying)
-    {
-        desiredGain = 1.0;
-    }
-
-    if (state->sound.wasPlaying)
-    {
-        gain = 1.0;
-    }
-
-    for (uint32 i = 0; i < output->sampleCount; i += 2)
-    {
-        real32 sampleGain = lerp(gain, desiredGain, (real32)i / (real32)output->sampleCount);
-        real64 sampleValue = state->sound.nextSample() * sampleGain * 32767;
-        output->samples[i] = output->samples[i + 1] = (int16)sampleValue;
-    }
-
-    if (!state->sound.isPlaying)
-    {
-        state->sound.phase = 0;
-    }
-
-    state->sound.wasPlaying = state->sound.isPlaying;
 }
 
 #include "westworld/westworld.cpp"

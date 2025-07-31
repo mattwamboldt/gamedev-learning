@@ -24,6 +24,10 @@ typedef int32 bool32;
 typedef float real32;
 typedef double real64;
 
+#define FOURCC(A, B, C, D) \
+    ((uint32)((uint8)(A) << 0) | (uint32)((uint8)(B) << 8) | \
+     (uint32)((uint8)(C) << 16) | (uint32)((uint8)(D) << 24))
+
 #ifndef FINAL
 #define Assert(expression) if(!(expression)) { *(int *)0 = 0; }
 #else
