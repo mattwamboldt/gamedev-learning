@@ -53,10 +53,15 @@ public:
         }
 
         // if a global state exists, call its execute method, else do nothing
-        if (globalState)
+        if (!isInTransition() && globalState)
         {
             // Make sure global state doesn't do any pause type stuff...
             globalState->Execute(owner);
+
+            if (isPaused)
+            {
+                return;
+            }
         }
 
         // same for the current state

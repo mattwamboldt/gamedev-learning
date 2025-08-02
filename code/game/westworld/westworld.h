@@ -1,5 +1,6 @@
 #pragma once
 #include "miner.h"
+#include "minersWife.h"
 
 struct GameState;
 
@@ -14,6 +15,7 @@ struct WestworldState
 {
     bool isInitialized;
     Miner* miner;
+    MinersWife* elsa;
 
     int32 groundTextureId;
 

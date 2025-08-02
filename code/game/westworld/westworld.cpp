@@ -1,8 +1,10 @@
 #include "minerStates.h"
+#include "minersWifeStates.h"
 #include "westworld.h"
 
 #include <cstdio>
 #include <cstdarg>
+#include <cstdlib>
 
 int BaseGameEntity::nextValidId = 0;
 static WestworldState* gWestworld = 0;
@@ -43,6 +45,7 @@ void ShowMessageBox(int32 entityId, char* format, ...)
 
     gWestworld->messageBoxActive = true;
     gWestworld->miner->GetFSM()->SetPaused(true);
+    gWestworld->elsa->GetFSM()->SetPaused(true);
 }
 
 void BaseGameEntity::SetID(int32 value)
@@ -283,6 +286,93 @@ void QuenchThirst::Exit(Miner* pMiner)
     ShowMessageBox(pMiner->Id(), "Leaving the saloon, feelin' good!");
 }
 
+MinersWife::MinersWife(int32 id) : BaseGameEntity(id),
+    stateElapsed(0),
+    stateDuration(2.0f)
+{
+    stateMachine = new StateMachine<MinersWife>(this);
+    stateMachine->SetCurrentState(DoHouseWork::Instance());
+    stateMachine->SetGlobalState(WifesGlobalState::Instance());
+}
+
+void MinersWife::Update(real32 elapsed)
+{
+    if (stateMachine->isInTransition())
+    {
+        stateMachine->Update();
+    }
+    else
+    {
+        stateElapsed += elapsed;
+        if (stateElapsed > stateDuration)
+        {
+            stateMachine->Update();
+            stateElapsed -= stateDuration;
+        }
+    }
+}
+
+WifesGlobalState* WifesGlobalState::Instance()
+{
+  static WifesGlobalState instance;
+  return &instance;
+}
+
+void WifesGlobalState::Execute(MinersWife* wife)
+{
+    //1 in 10 chance of needing the bathroom
+    if (rand() % 10 == 0)
+    {
+        wife->GetFSM()->ChangeState(VisitBathroom::Instance());
+    }
+}
+
+DoHouseWork* DoHouseWork::Instance()
+{
+    static DoHouseWork instance;
+    return &instance;
+}
+
+void DoHouseWork::Execute(MinersWife* wife)
+{
+    switch(rand() % 3)
+    {
+    case 0:
+        ShowMessageBox(wife->Id(), "Moppin' the floor");
+        break;
+
+    case 1:
+        ShowMessageBox(wife->Id(), "Washin' the dishes");
+        break;
+
+    case 2:
+        ShowMessageBox(wife->Id(), "Makin' the bed");
+        break;
+    }
+}
+
+VisitBathroom* VisitBathroom::Instance()
+{
+    static VisitBathroom instance;
+    return &instance;
+}
+
+void VisitBathroom::Enter(MinersWife* wife)
+{
+    ShowMessageBox(wife->Id(), "Walkin' to the can. Need to powda mah pretty li'lle nose"); 
+}
+
+void VisitBathroom::Execute(MinersWife* wife)
+{
+    ShowMessageBox(wife->Id(), "Ahhhhhh! Sweet relief!");
+    wife->GetFSM()->RevertToPreviousState();
+}
+
+void VisitBathroom::Exit(MinersWife* wife)
+{
+    ShowMessageBox(wife->Id(), "Leavin' the Jon");
+}
+
 void WestworldUpdateAndRender(GameState *state, GameInput* input)
 {
     gWestworld = &state->westworld;
@@ -290,9 +380,12 @@ void WestworldUpdateAndRender(GameState *state, GameInput* input)
     {
         gWestworld->messageBox[0] = 0;
         gWestworld->miner = new Miner(ENTITY_MINER_BOB);
-        gWestworld->miner->Update(0);
         gWestworld->miner->textureId = LoadPNG("westworld/prospector/idle0.png");
+        
+        gWestworld->elsa = new MinersWife(ENTITY_ELSA);
 
+        gWestworld->miner->Update(0);
+        gWestworld->elsa->Update(0);
         gWestworld->groundTextureId = LoadPNG("westworld/ground.png");
 
         // SHACK
@@ -330,9 +423,11 @@ void WestworldUpdateAndRender(GameState *state, GameInput* input)
     {
         gWestworld->messageBoxActive = false;
         gWestworld->miner->GetFSM()->SetPaused(false);
+        gWestworld->elsa->GetFSM()->SetPaused(false);
     }
 
     gWestworld->miner->Update(input->timeDelta);
+    gWestworld->elsa->Update(input->timeDelta);
 
     RectF screenRect = {
         0, 0,

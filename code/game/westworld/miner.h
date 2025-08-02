@@ -29,8 +29,10 @@ class Miner : public BaseGameEntity
 {
 public:
     Miner(int32 id);
+    ~Miner(){ delete stateMachine; }
+
     void Update(real32 elapsed);
-    StateMachine<Miner>* GetFSM() {return stateMachine; }
+    StateMachine<Miner>* GetFSM() { return stateMachine; }
 
     // NOTE: I wouldn't normally bother with getters and setters when they do nothing like this
     // NOTE: I also wouldn't bother with const correctness as it serves no practical benefit I find
