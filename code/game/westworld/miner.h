@@ -1,6 +1,7 @@
 #pragma once
 #include "baseGameEntity.h"
 #include "stateMachine.h"
+#include <math.h>
 
 enum TownLocation
 {
@@ -34,6 +35,8 @@ public:
     void Update(real32 elapsed);
     StateMachine<Miner>* GetFSM() { return stateMachine; }
 
+    virtual bool HandleMessage(const Telegram& msg);
+
     // NOTE: I wouldn't normally bother with getters and setters when they do nothing like this
     // NOTE: I also wouldn't bother with const correctness as it serves no practical benefit I find
     TownLocation Location() const { return location; }
@@ -44,9 +47,9 @@ public:
     void AddToGoldCarried(const int val);
     bool PocketsFull() const { return numGoldCarried >= MaxNuggets; }
 
-    int32 Fatigue() const { return fatigue; }
+    int32 Fatigue() const { return (int32)ceil(fatigue); }
     bool Fatigued() const;
-    void DecreaseFatigue(){ --fatigue; }
+    void DecreaseFatigue(real32 amount);
     void IncreaseFatigue(){ ++fatigue; }
 
     int Wealth() const { return numGoldInBank; }
@@ -72,6 +75,8 @@ public:
 
 private:
     StateMachine<Miner>* stateMachine;
+    real32 stateElapsed;
+    real32 stateDuration;
 
     // Miners current location
     TownLocation location;
@@ -86,5 +91,5 @@ private:
     int32 thirst;
 
     // Higher value = more tired
-    int32 fatigue;
+    real32 fatigue;
 };

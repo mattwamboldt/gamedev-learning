@@ -2,6 +2,8 @@
 
 #include "platform.h"
 
+static IPlatform* gPlatform;
+
 // Global types that are used by the game that the platform doesn't need to know about
 
 struct Oscillator

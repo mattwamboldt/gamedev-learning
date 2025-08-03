@@ -9,6 +9,7 @@ public:
     virtual void Enter(MinersWife* wife){}
     virtual void Execute(MinersWife* wife);
     virtual void Exit(MinersWife* wife){}
+    virtual bool OnMessage(MinersWife* wife, const Telegram& msg);
 
 private:
     //copy ctor and assignment should be private
@@ -47,4 +48,20 @@ private:
     VisitBathroom(){}
     VisitBathroom(const VisitBathroom&);
     VisitBathroom& operator=(const VisitBathroom&);
+};
+
+class CookStew : public State<MinersWife>
+{
+public:
+    static CookStew* Instance();
+
+    virtual void Enter(MinersWife* wife);
+    virtual void Execute(MinersWife* wife);
+    virtual void Exit(MinersWife* wife);
+    virtual bool OnMessage(MinersWife* wife, const Telegram& msg);
+
+private:
+    CookStew(){}
+    CookStew(const CookStew&);
+    CookStew& operator=(const CookStew&);
 };

@@ -94,6 +94,11 @@ public:
             return;
         }
 
+        if (newState == desiredState)
+        {
+            return;
+        }
+
         desiredState = newState;
 
         if (!isPaused)
@@ -108,6 +113,25 @@ public:
             currentState = newState;
             currentState->Enter(owner);
         }
+    }
+
+    bool HandleMessage(const Telegram& msg)const
+    {
+        //first see if the current state is valid and that it can handle
+        //the message
+        if (currentState && currentState->OnMessage(owner, msg))
+        {
+            return true;
+        }
+    
+        //if not, and if a global state has been implemented, send 
+        //the message to the global state
+        if (globalState && globalState->OnMessage(owner, msg))
+        {
+            return true;
+        }
+
+        return false;
     }
 
 private:

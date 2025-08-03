@@ -24,6 +24,9 @@ struct WestworldState
 
     char messageBox[128];
     bool messageBoxActive;
+
+    uint16 numMessages;
+    Telegram messageQueue[20];
 };
 
 void WestworldUpdateAndRender(GameState* state, GameInput* input);

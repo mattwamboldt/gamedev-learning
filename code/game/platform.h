@@ -245,6 +245,8 @@ public:
     virtual void setProjection(real32 width, real32 height) = 0;
     virtual void renderSprite(Sprite sprite) = 0;
     virtual void clearScreen(Color color) = 0;
+
+    virtual int64 currentTimeMillis() = 0;
 };
 
 // These defines help avoid issues with changing the parameters of

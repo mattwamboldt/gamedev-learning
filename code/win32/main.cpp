@@ -319,6 +319,24 @@ public:
         glClearColor(color.r, color.g, color.b, color.a);
         glClear(GL_COLOR_BUFFER_BIT);
     }
+
+    int64 currentTimeMillis()
+    {
+        /* FILETIME of Jan 1 1970 00:00:00. */
+        static const uint64 epoch = (uint64)116444736000000000ULL;
+
+        SYSTEMTIME system_time;
+        GetSystemTime(&system_time);
+
+        FILETIME file_time;
+        SystemTimeToFileTime(&system_time, &file_time);
+
+        ULARGE_INTEGER ularge = {};
+        ularge.LowPart = file_time.dwLowDateTime;
+        ularge.HighPart = file_time.dwHighDateTime;
+
+        return (ularge.QuadPart - epoch) / 10000L;
+    }
 };
 
 // AUDIO SUBSYSTEM

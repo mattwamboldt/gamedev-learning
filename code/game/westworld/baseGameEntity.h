@@ -1,5 +1,6 @@
 #pragma once
 #include "../platform.h"
+#include "telegram.h"
 
 // page 52 of Programming Game AI. Would not do this this way
 class BaseGameEntity
@@ -16,6 +17,8 @@ class BaseGameEntity
 
         // All entities must implement an update function
         virtual void Update(real32 elapsed) = 0;
+
+        virtual bool HandleMessage(const Telegram& msg) = 0;
 
     private:
         // every entity has a unique identifying number

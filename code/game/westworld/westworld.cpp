@@ -2,12 +2,16 @@
 #include "minersWifeStates.h"
 #include "westworld.h"
 
+#include "messageTypes.h"
+
 #include <cstdio>
 #include <cstdarg>
 #include <cstdlib>
 
 int BaseGameEntity::nextValidId = 0;
 static WestworldState* gWestworld = 0;
+
+const double SEND_MSG_IMMEDIATELY = 0.0f;
 
 enum Entities
 {
@@ -48,6 +52,63 @@ void ShowMessageBox(int32 entityId, char* format, ...)
     gWestworld->elsa->GetFSM()->SetPaused(true);
 }
 
+BaseGameEntity* GetEntityFromID(int32 id)
+{
+    if (id == ENTITY_MINER_BOB) return gWestworld->miner;
+    if (id == ENTITY_ELSA) return gWestworld->elsa;
+    return 0;
+}
+
+void DispatchMessage(real64 delay, int32 sender, int32 receiver, int32 messageType, void* extraInfo = 0)
+{
+    BaseGameEntity* pReceiver = GetEntityFromID(receiver);
+
+    if (pReceiver == 0)
+    {
+        // Log Error cout << "\nWarning! No Receiver with ID of " << receiver << " found";
+        return;
+    }
+
+    Telegram telegram(0, sender, receiver, messageType, extraInfo);
+    if (delay <= 0.0f)
+    {
+        pReceiver->HandleMessage(telegram);
+    }
+    else
+    {
+        real64 currentTime = gPlatform->currentTimeMillis() * 0.001;
+        telegram.dispatchTime = currentTime + delay;
+        gWestworld->messageQueue[gWestworld->numMessages++] = telegram;
+    }
+}
+
+void FireDelayedMessages()
+{
+    int64 currentMS = gPlatform->currentTimeMillis();
+    real64 currentTime = currentMS * 0.001;
+    uint16 index = 0;
+    while (index < gWestworld->numMessages)
+    {
+        if (gWestworld->messageQueue[index].dispatchTime < currentTime)
+        {
+            BaseGameEntity* receiver = GetEntityFromID(gWestworld->messageQueue[index].receiver);
+            receiver->HandleMessage(gWestworld->messageQueue[index]);
+
+            // swap the empty slot with the end of the list
+            if (index < gWestworld->numMessages - 1)
+            {
+                gWestworld->messageQueue[index] = gWestworld->messageQueue[gWestworld->numMessages - 1];
+            }
+            
+            --gWestworld->numMessages;
+        }
+        else
+        {
+            ++index;
+        }
+    }
+}
+
 void BaseGameEntity::SetID(int32 value)
 {
     Assert(value >= nextValidId)
@@ -85,6 +146,12 @@ void Miner::Update(real32 elapsed)
         {
             position = endPosition;
             location = destination;
+
+            if (location == SHACK)
+            {
+                //let the wife know I'm home
+                DispatchMessage(SEND_MSG_IMMEDIATELY, ENTITY_MINER_BOB, ENTITY_ELSA, MSG_HiHoneyImHome);
+            }
         }
         else
         {
@@ -110,6 +177,11 @@ void Miner::ChangeLocation(const TownLocation loc)
     timeToDestination = 2.0f;
 }
 
+bool Miner::HandleMessage(const Telegram& msg)
+{
+    return stateMachine->HandleMessage(msg);
+}
+
 void Miner::AddToGoldCarried(const int val)
 {
     numGoldCarried += val;
@@ -132,6 +204,16 @@ bool Miner::Thirsty()const
 bool Miner::Fatigued() const
 {
     return fatigue > TirednessThreshold;
+}
+
+void Miner::DecreaseFatigue(real32 amount)
+{
+    fatigue -= amount;
+
+    if (fatigue < 0.0f)
+    {
+        fatigue = 0.0f;
+    }
 }
 
 EnterMineAndDigForNugget* EnterMineAndDigForNugget::Instance()
@@ -234,7 +316,7 @@ void GoHomeAndSleepTilRested::Enter(Miner* pMiner)
 }
 
 void GoHomeAndSleepTilRested::Execute(Miner* pMiner)
-{ 
+{
     //if miner is not fatigued start to dig for nuggets again.
     if (!pMiner->Fatigued())
     {
@@ -243,14 +325,24 @@ void GoHomeAndSleepTilRested::Execute(Miner* pMiner)
     }
     else 
     {
-        pMiner->DecreaseFatigue();
-        ShowMessageBox(pMiner->Id(), "ZZZZ...");
-    } 
+        pMiner->DecreaseFatigue(1.0f);
+    }
 }
 
 void GoHomeAndSleepTilRested::Exit(Miner* pMiner)
 {
-    ShowMessageBox(pMiner->Id(), "Leaving the house.");
+}
+
+bool GoHomeAndSleepTilRested::OnMessage(Miner* pMiner, const Telegram& msg)
+{
+    if (msg.messageType == MSG_StewReady)
+    {
+        ShowMessageBox(pMiner->Id(), "Okay Hun, ahm a comin'!");
+        pMiner->GetFSM()->ChangeState(EatStew::Instance());     
+        return true;
+    }
+
+    return false;
 }
 
 QuenchThirst* QuenchThirst::Instance()
@@ -286,9 +378,32 @@ void QuenchThirst::Exit(Miner* pMiner)
     ShowMessageBox(pMiner->Id(), "Leaving the saloon, feelin' good!");
 }
 
+EatStew* EatStew::Instance()
+{
+    static EatStew instance;
+    return &instance;
+}
+
+void EatStew::Enter(Miner* pMiner)
+{
+    ShowMessageBox(pMiner->Id(), "Smells Reaaal goood Elsa!");
+}
+
+void EatStew::Execute(Miner* pMiner)
+{
+    ShowMessageBox(pMiner->Id(), "Tastes real good too!");
+    pMiner->GetFSM()->RevertToPreviousState();
+}
+
+void EatStew::Exit(Miner* pMiner)
+{ 
+    ShowMessageBox(pMiner->Id(), "Thankya li'lle lady. Ah better get back to whatever ah wuz doin'");
+}
+
 MinersWife::MinersWife(int32 id) : BaseGameEntity(id),
     stateElapsed(0),
-    stateDuration(2.0f)
+    stateDuration(2.0f),
+    isCooking(false)
 {
     stateMachine = new StateMachine<MinersWife>(this);
     stateMachine->SetCurrentState(DoHouseWork::Instance());
@@ -312,10 +427,15 @@ void MinersWife::Update(real32 elapsed)
     }
 }
 
+bool MinersWife::HandleMessage(const Telegram& msg)
+{
+    return stateMachine->HandleMessage(msg);
+}
+
 WifesGlobalState* WifesGlobalState::Instance()
 {
-  static WifesGlobalState instance;
-  return &instance;
+    static WifesGlobalState instance;
+    return &instance;
 }
 
 void WifesGlobalState::Execute(MinersWife* wife)
@@ -325,6 +445,18 @@ void WifesGlobalState::Execute(MinersWife* wife)
     {
         wife->GetFSM()->ChangeState(VisitBathroom::Instance());
     }
+}
+
+bool WifesGlobalState::OnMessage(MinersWife* wife, const Telegram& msg)
+{
+    if (msg.messageType == MSG_HiHoneyImHome && !wife->GetFSM()->isInTransition())
+    {
+        ShowMessageBox(wife->Id(), "Hi honey. Let me make you some of mah fine country stew");
+        wife->GetFSM()->ChangeState(CookStew::Instance());
+        return true;
+    }
+
+    return false;
 }
 
 DoHouseWork* DoHouseWork::Instance()
@@ -371,6 +503,52 @@ void VisitBathroom::Execute(MinersWife* wife)
 void VisitBathroom::Exit(MinersWife* wife)
 {
     ShowMessageBox(wife->Id(), "Leavin' the Jon");
+}
+
+CookStew* CookStew::Instance()
+{
+    static CookStew instance;
+    return &instance;
+}
+
+void CookStew::Enter(MinersWife* wife)
+{
+    //if not already cooking put the stew in the oven
+    if (wife->Cooking())
+    {
+        return;
+    }
+
+    ShowMessageBox(wife->Id(), "Putting the stew in the oven");
+
+    // send a delayed message myself so that I know when to take the stew out of the oven
+    DispatchMessage(1.5, wife->Id(), wife->Id(), MSG_StewReady); 
+
+    wife->SetCooking(true);
+}
+
+void CookStew::Execute(MinersWife* wife)
+{
+    ShowMessageBox(wife->Id(), "Fussin' over food");
+}
+
+void CookStew::Exit(MinersWife* wife)
+{
+    ShowMessageBox(wife->Id(), "Puttin' the stew on the table");
+    DispatchMessage(SEND_MSG_IMMEDIATELY, wife->Id(), ENTITY_MINER_BOB, MSG_StewReady);
+}
+
+bool CookStew::OnMessage(MinersWife* wife, const Telegram& msg)
+{
+    if (msg.messageType == MSG_StewReady)
+    {
+        ShowMessageBox(wife->Id(), "StewReady! Lets eat");
+        wife->SetCooking(false);
+        wife->GetFSM()->ChangeState(DoHouseWork::Instance());
+        return true;
+    }
+
+    return false;
 }
 
 void WestworldUpdateAndRender(GameState *state, GameInput* input)
@@ -428,6 +606,7 @@ void WestworldUpdateAndRender(GameState *state, GameInput* input)
 
     gWestworld->miner->Update(input->timeDelta);
     gWestworld->elsa->Update(input->timeDelta);
+    FireDelayedMessages();
 
     RectF screenRect = {
         0, 0,

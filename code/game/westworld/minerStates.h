@@ -52,6 +52,7 @@ public:
     virtual void Enter(Miner* miner);
     virtual void Execute(Miner* miner);
     virtual void Exit(Miner* miner);
+    virtual bool OnMessage(Miner* agent, const Telegram& msg);
 
 private:
     // Prevents accidental non singleton instantiation
@@ -75,4 +76,19 @@ private:
     QuenchThirst(){}
     QuenchThirst(const QuenchThirst&);
     QuenchThirst& operator=(const QuenchThirst&);
+};
+
+class EatStew : public State<Miner>
+{
+public:
+    static EatStew* Instance();
+
+    virtual void Enter(Miner* miner);
+    virtual void Execute(Miner* miner);
+    virtual void Exit(Miner* miner);
+
+private:  
+    EatStew(){}
+    EatStew(const EatStew&);
+    EatStew& operator=(const EatStew&);
 };

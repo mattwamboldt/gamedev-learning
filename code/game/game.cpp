@@ -24,7 +24,6 @@ HexColor(red, 0xAD, 0x38, 0x1D, 0xFF)
 HexColor(blue, 0x29, 0x4D, 0xA9, 0xFF)
 HexColor(green, 0x33, 0x9A, 0x06, 0xFF)
 
-static IPlatform* gPlatform = 0;
 static GameState* gState = 0;
 
 inline Vector2 operator-(Vector2 a, Vector2 b)
