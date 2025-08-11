@@ -4,13 +4,6 @@ namespace Steering
 {
     static DemoState* gSteeringState = 0;
 
-    enum Deceleration
-    {
-        FAST = 1,
-        NORMAL,
-        SLOW
-    };
-
     Vector2 Seek(Entity* entity, Vector2 targetPosition)
     {
         Vector2 desiredVelocity = targetPosition - entity->position;
@@ -33,7 +26,7 @@ namespace Steering
         return desiredVelocity - entity->velocity;
     }
 
-    Vector2 Arrive(Entity* entity, Vector2 targetPosition, Deceleration deceleration)
+    Vector2 Arrive(Entity* entity, Vector2 targetPosition)
     {
         Vector2 desiredVelocity = targetPosition - entity->position;
         real32 distance = desiredVelocity.Length();
@@ -60,7 +53,7 @@ namespace Steering
     {
         if (gSteeringState->seekTarget)
         {
-            return Arrive(entity, gSteeringState->targetPosition, Deceleration::FAST);
+            return Arrive(entity, gSteeringState->targetPosition);
         }
 
         return {0, 0};
@@ -152,7 +145,5 @@ namespace Steering
 
             gPlatform->renderLines(points, 3, white);
         }
-
-
     }
 }
