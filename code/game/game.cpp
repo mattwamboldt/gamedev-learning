@@ -26,26 +26,7 @@ HexColor(green, 0x33, 0x9A, 0x06, 0xFF)
 
 static GameState* gState = 0;
 
-inline Vector2 operator-(Vector2 a, Vector2 b)
-{
-    Vector2 result = {};
-    result.x = a.x - b.x;
-    result.y = a.y - b.y;
-    return result;
-}
-
-inline Vector2 operator*(Vector2 v, real32 s)
-{
-    Vector2 result = {};
-    result.x = v.x * s;
-    result.y = v.y * s;
-    return result;
-}
-
-inline Vector2 operator*(real32 s, Vector2 v)
-{
-    return v * s;
-}
+#include "vector.cpp"
 
 void Oscillator::setFrequency(real64 desiredFrequency)
 {
@@ -172,11 +153,11 @@ uint32 LoadPNG(char* path)
 
 enum WaveFormats
 {
-	WAVE_PCM = 1,
-	WAVE_FLOAT = 3,
-	WAVE_ALAW = 6,
-	WAVE_MULAW = 7,
-	WAVE_EXTENSIBLE = 0xFFFE
+    WAVE_PCM = 1,
+    WAVE_FLOAT = 3,
+    WAVE_ALAW = 6,
+    WAVE_MULAW = 7,
+    WAVE_EXTENSIBLE = 0xFFFE
 };
 
 #pragma pack(push, 1)
@@ -627,7 +608,7 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
     state->camera.aspect = state->camera.screenSize.x / state->camera.screenSize.y;
 
     // Set up our UI camera to scale to 1080 high, orthographic, no depth
-    real32 virtualHeight = 1080.0f;
+    real32 virtualHeight = 720.0f;
     state->camera.screenScale = virtualHeight / state->camera.screenSize.y;
     state->camera.size = {
         state->camera.screenScale * state->camera.screenSize.x,
@@ -635,6 +616,7 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
     };
 
     platform->setProjection(state->camera.size.x, state->camera.size.y);
+
     state->frame.center = state->camera.size.x * 0.5f;
     state->frame.middle = state->camera.size.y * 0.5f;
     state->frame.left = 0;
@@ -643,6 +625,9 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
     state->frame.bottom = 0;
     state->frame.width = state->camera.size.x;
     state->frame.height = state->camera.size.y;
+
+    input->mouse.x *= state->frame.width;
+    input->mouse.y *= state->frame.height;
 
     platform->clearScreen(black);
 
@@ -662,7 +647,7 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
         if (input->controller.cross.wasPressed())
         {
             PlaySound(state->menuSelectSoundId);
-            state->currentDemo = DEMO_WESTWORLD; // (Demo)state->selectedDemo; haard coding cause we only have 1
+            state->currentDemo = (Demo)state->selectedDemo;
         }
 
         RenderText(state->mainFontId, "Demos", state->frame.center, state->frame.top - 10, { 0.5f, 1 }, white);
@@ -670,7 +655,7 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
         Vector2 listStart = {state->frame.left + 20, state->frame.top - 50};
         char* menuItems[] = {
             "West World",
-            "Placeholder"
+            "Steering Behaviours"
         };
 
         Vector2 largestText = {};
@@ -700,6 +685,14 @@ extern "C" __declspec(dllexport) GAME_UPDATE_AND_RENDER(gameUpdateAndRender)
     {
         WestworldUpdateAndRender(state, input);
     }
+    else if (state->currentDemo == DEMO_STEERING)
+    {
+        Steering::UpdateAndRender(state, input);
+    }
+
+    char mouseText[64];
+    sprintf(mouseText, "%0.2f, %0.2f", input->mouse.x, input->mouse.y);
+    RenderText(state->mainFontId, mouseText, state->frame.width - 10, state->frame.bottom, {1, 0}, white);
 }
 
 #include <cstring>
@@ -802,3 +795,4 @@ extern "C" __declspec(dllexport) GAME_OUTPUT_SOUND(gameOutputSound)
 }
 
 #include "westworld/westworld.cpp"
+#include "steering/steering.cpp"

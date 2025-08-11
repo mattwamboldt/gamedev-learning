@@ -140,14 +140,4 @@ void updateInput(HWND window, GameInput* input)
         XInputSetState(input->controller.deviceId, &vibration);
         */
     }
-
-    {
-        POINT mousePosition;
-        GetCursorPos(&mousePosition);
-        ScreenToClient(window, &mousePosition);
-        input->mouse.x = (real32)mousePosition.x;
-        input->mouse.y = (real32)mousePosition.y; // (renderState.screenSize.y - 1) - (real32)mousePosition.y;
-        input->mouse.left.setState((GetKeyState(VK_LBUTTON) & (1 << 15)) != 0);
-        input->mouse.right.setState((GetKeyState(VK_RBUTTON) & (1 << 15)) != 0);
-    }
 }

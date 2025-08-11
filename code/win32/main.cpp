@@ -3,6 +3,8 @@
 
 #include "../game/platform.h"
 
+#include "../game/vector.cpp"
+
 // TODO: Add Logging system, Find/Replace OutputDebugStringA
 
 static bool isRunning = true;
@@ -314,6 +316,19 @@ public:
         glColor4f(1, 1, 1, 1);
     }
 
+    virtual void renderLines(Vector2* points, int32 numPoints, Color color)
+    {
+        glColor4f(color.r, color.g, color.b, color.a);
+        glBegin(GL_LINE_STRIP);
+        for (int i = 0; i < numPoints; ++i)
+        {
+            glVertex2f(points[i].x, points[i].y);
+        }
+
+        glVertex2f(points[0].x, points[0].y);
+        glEnd();
+    }
+
     virtual void clearScreen(Color color)
     {
         glClearColor(color.r, color.g, color.b, color.a);
@@ -478,13 +493,17 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, 
         | WS_MAXIMIZEBOX
         | WS_VISIBLE;
 
+    RECT windowRect = { 0, 0, 1280, 720 };
+    AdjustWindowRectEx(&windowRect, windowStyle, FALSE, 0);
+
     HWND window = CreateWindowExA(
         0,
         windowClass.lpszClassName,
         "GameDev Prototypes",
         windowStyle,
         CW_USEDEFAULT, CW_USEDEFAULT,
-        800, 600,
+        windowRect.right - windowRect.left,
+        windowRect.bottom - windowRect.top,
         0, 0, instance, 0
     );
 
@@ -597,6 +616,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, 
         setViewport(renderState.screenWidth, renderState.screenHeight);
 
         updateInput(window, &input);
+
+        {
+            POINT mousePosition;
+            GetCursorPos(&mousePosition);
+            ScreenToClient(window, &mousePosition);
+            input.mouse.x = (real32)mousePosition.x / (real32)clientRect.right;
+            input.mouse.y = ((renderState.screenHeight - 1) - (real32)mousePosition.y) / (real32)clientRect.bottom;
+            input.mouse.left.setState((GetKeyState(VK_LBUTTON) & (1 << 15)) != 0);
+            input.mouse.right.setState((GetKeyState(VK_RBUTTON) & (1 << 15)) != 0);
+        }
 
         if (game.updateAndRender)
         {

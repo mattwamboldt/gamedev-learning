@@ -141,13 +141,14 @@ struct UIFrame
 enum Demo
 {
     DEMO_WESTWORLD = 0,
-    DEMO_PLACEHOLDER,
+    DEMO_STEERING,
     NUM_DEMOS,
 
     DEMO_SELECT = -1,
 };
 
 #include "westworld/westworld.h"
+#include "steering/steering.h"
 
 struct GameState
 {
@@ -157,7 +158,7 @@ struct GameState
     Camera camera;
 
     Demo currentDemo;
-    int selectedDemo;
+    int32 selectedDemo;
 
     int32 mainFontId;
     int32 menuMoveSoundId;
@@ -171,4 +172,6 @@ struct GameState
     // If I add more demos this is probably best done as a stack push that can
     // can be popped when we leave this demos lifetime
     WestworldState westworld;
+
+    Steering::DemoState steering;
 };

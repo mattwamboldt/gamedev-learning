@@ -6,45 +6,14 @@
 // TODO: Currently much of this is derivative of handmade hero. I prefer using some amount of classes for organization, unlike casey
 // So I want to refactor a lot of this to my style/idioms once code reloading and the other platform lessons are in here and stable
 
-// Common types, typedefs and macros that make life simpler
-#include <stdint.h>
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef int32 bool32;
-
-typedef float real32;
-typedef double real64;
-
-#define FOURCC(A, B, C, D) \
-    ((uint32)((uint8)(A) << 0) | (uint32)((uint8)(B) << 8) | \
-     (uint32)((uint8)(C) << 16) | (uint32)((uint8)(D) << 24))
-
-#ifndef FINAL
-#define Assert(expression) if(!(expression)) { *(int *)0 = 0; }
-#else
-#define Assert(expression)
-#endif
-
-#define Kilobytes(value) ((value) * 1024)
-#define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) (Megabytes(value) * 1024)
-#define Terabytes(value) (Gigabytes(value) * 1024)
+#include "globals.h"
 
 struct Color
 {
-	real32 r;
-	real32 g;
-	real32 b;
-	real32 a;
+    real32 r;
+    real32 g;
+    real32 b;
+    real32 a;
 };
 
 struct RectF
@@ -55,19 +24,7 @@ struct RectF
     real32 height;
 };
 
-struct Vector2
-{
-    real32 x;
-    real32 y;
-};
-
-inline Vector2 operator+(Vector2 a, Vector2 b)
-{
-    Vector2 result = {};
-    result.x = a.x + b.x;
-    result.y = a.y + b.y;
-    return result;
-}
+#include "vector.h"
 
 struct GameRenderer
 {
@@ -244,6 +201,7 @@ public:
 
     virtual void setProjection(real32 width, real32 height) = 0;
     virtual void renderSprite(Sprite sprite) = 0;
+    virtual void renderLines(Vector2* points, int32 numPoints, Color color) = 0;
     virtual void clearScreen(Color color) = 0;
 
     virtual int64 currentTimeMillis() = 0;

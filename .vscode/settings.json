@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "cstring": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "algorithm": "cpp",
+        "memory": "cpp",
+        "limits": "cpp",
+        "utility": "cpp"
     }
 }
